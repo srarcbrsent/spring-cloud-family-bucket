@@ -18,6 +18,8 @@ public class TcMethodDefinition {
 
     private String name;
 
+    private String body;
+
     private List<TcAnnotationDefinition> annotations = Lists.newArrayList();
 
     private List<TcArgDefinition> args = Lists.newArrayList();

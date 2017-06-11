@@ -14,6 +14,7 @@ import com.github.javaparser.ast.expr.StringLiteralExpr;
 import com.github.javaparser.ast.stmt.BlockStmt;
 import com.github.javaparser.ast.type.ClassOrInterfaceType;
 import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
 import com.ysu.zyw.tc.webgen.api.definitons.TcClassDefinition;
 import lombok.experimental.UtilityClass;
 
@@ -37,9 +38,38 @@ public class TcClassBuilder {
         // add type declaration
         ClassOrInterfaceDeclaration classDeclaration = compilationUnit.addClass(tcClassDefinition.getName());
 
+        // add implements interface
+        if (Objects.nonNull(tcClassDefinition.getImplementsInterface())) {
+            classDeclaration.addImplements(tcClassDefinition.getImplementsInterface());
+        }
+
         // add imports
         doIfNonNull(tcClassDefinition.getImports(), imports -> {
-            imports.forEach(compilationUnit::addImport);
+            Sets.newHashSet(imports).forEach(compilationUnit::addImport);
+        });
+
+        // add class field
+        doIfNonNull(tcClassDefinition.getFields(), fields -> {
+            fields.forEach(field -> {
+                ClassOrInterfaceType type = new ClassOrInterfaceType(field.getType());
+                // add field annotation
+                doIfNonNull(field.getAnnotations(), annotations -> {
+                    annotations.forEach(tcAnnotationDefinition -> {
+                        type.addAnnotation(new NormalAnnotationExpr(
+                                Name.parse(tcAnnotationDefinition.getAnnotation()),
+                                NodeList.nodeList(
+                                        // annotation fields
+                                        mapIfNonNull(tcAnnotationDefinition.getFields(),
+                                                annotationFields -> annotationFields.stream().map(annotationField ->
+                                                        new MemberValuePair(annotationField.getName(),
+                                                                new StringLiteralExpr(annotationField.getValue())))
+                                                        .collect(Collectors.toList()))
+                                )
+                        ));
+                    });
+                });
+                classDeclaration.addField(type, field.getName(), Modifier.PRIVATE);
+            });
         });
 
         // add class annotations
@@ -48,6 +78,7 @@ public class TcClassBuilder {
                 classDeclaration.addAnnotation(new NormalAnnotationExpr(
                         Name.parse(tcAnnotationDefinition.getAnnotation()),
                         NodeList.nodeList(
+                                // annotation fields
                                 mapIfNonNull(tcAnnotationDefinition.getFields(),
                                         fields -> fields.stream().map(field ->
                                                 new MemberValuePair(field.getName(), new StringLiteralExpr(field.getValue())))
@@ -114,8 +145,11 @@ public class TcClassBuilder {
                 });
 
                 // method body
-                BlockStmt block = new BlockStmt();
-                method.setBody(block);
+                if (Objects.nonNull(tcMethodDefinition.getBody())) {
+                    BlockStmt block = new BlockStmt();
+                    block.addStatement(tcMethodDefinition.getBody());
+                    method.setBody(block);
+                }
 
                 classDeclaration.addMember(method);
             });
@@ -125,13 +159,13 @@ public class TcClassBuilder {
         return compilationUnit.toString();
     }
 
-    public static <T> void doIfNonNull(Collection<T> t, Consumer<Collection<T>> consumer) {
+    private static <T> void doIfNonNull(Collection<T> t, Consumer<Collection<T>> consumer) {
         if (Objects.nonNull(t)) {
             consumer.accept(t);
         }
     }
 
-    public static <T, R> List<R> mapIfNonNull(List<T> t, Function<List<T>, List<R>> fun) {
+    private static <T, R> List<R> mapIfNonNull(List<T> t, Function<List<T>, List<R>> fun) {
         if (Objects.nonNull(t)) {
             return fun.apply(t);
         }

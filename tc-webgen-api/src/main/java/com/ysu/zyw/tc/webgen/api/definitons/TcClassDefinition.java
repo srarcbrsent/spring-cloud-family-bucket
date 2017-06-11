@@ -18,6 +18,8 @@ public class TcClassDefinition {
 
     private String name;
 
+    private String implementsInterface;
+
     private List<String> imports = Lists.newArrayList();
 
     private List<TcAnnotationDefinition> annotations = Lists.newArrayList();

@@ -4,9 +4,11 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import org.jooq.Record;
 import org.jooq.Table;
 
 import java.util.List;
+import java.util.function.Function;
 
 @NoArgsConstructor
 @AllArgsConstructor
@@ -30,13 +32,19 @@ public class TcWebgenConfig {
 
     private String projectWebLayerPackage;
 
-    private List<TcWebgenApiDetails> apiDetails;
+    private String projectTermsLayerPackage;
+
+    private Function<String, String> tableNamePostProcessor;
+
+    private Function<String ,String> controllerMappingPostProcessor;
+
+    private List<TcWebgenTableDetail> tableDetails;
 
     @NoArgsConstructor
     @AllArgsConstructor
     @Data
     @Builder
-    public static class TcWebgenApiDetails {
+    public static class TcWebgenTableDetail {
 
         private Table table;
 

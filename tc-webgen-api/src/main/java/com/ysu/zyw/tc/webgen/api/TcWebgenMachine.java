@@ -1,110 +1,71 @@
 package com.ysu.zyw.tc.webgen.api;
 
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
 import com.ysu.zyw.tc.webgen.api.builder.TcClassBuilder;
-import com.ysu.zyw.tc.webgen.api.definitons.TcAnnotationDefinition;
-import com.ysu.zyw.tc.webgen.api.definitons.TcArgDefinition;
-import com.ysu.zyw.tc.webgen.api.definitons.TcClassDefinition;
-import com.ysu.zyw.tc.webgen.api.definitons.TcMethodDefinition;
-import com.ysu.zyw.tc.webgen.api.utils.TcPathUtils;
-import org.springframework.stereotype.Controller;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
+import com.ysu.zyw.tc.webgen.api.definitons.*;
+import com.ysu.zyw.tc.webgen.api.handlers.*;
+import lombok.Data;
+import org.jooq.Field;
+
+import java.math.BigDecimal;
+import java.sql.Timestamp;
+import java.util.*;
+
 
 public class TcWebgenMachine {
 
+    private static final Map<Class, TcAbstractWebgenTypeHandler> typeHandlers = Maps.newHashMap(
+            ImmutableMap.<Class, TcAbstractWebgenTypeHandler>builder()
+                    .put(Integer.class, new TcWebgenIntegerTypeHandler())
+                    .put(Long.class, new TcWebgenLongTypeHandler())
+                    .put(Boolean.class, new TcWebgenBooleanTypeHandler())
+                    .put(BigDecimal.class, new TcWebgenBigDecimalTypeHandler())
+                    .put(String.class, new TcWebgenStringTypeHandler())
+                    .put(Timestamp.class, new TcWebgenTimestampTypeHandler())
+                    .build()
+    );
+
     public static void gen(TcWebgenConfig config) {
-
-        // gen web
-        config.getApiDetails().forEach(apiDetails -> {
-            TcClassDefinition classDefinition = TcClassDefinition
-                    .builder()
-                    .pkg(config.getProjectWebLayerPackage())
-                    .imports(Lists.newArrayList(
-                            Controller.class.getTypeName(),
-                            RequestMapping.class.getTypeName(),
-                            RequestBody.class.getTypeName()
-                    ))
-                    .name("HelloController")
-                    .annotations(Lists.newArrayList(
-                            TcAnnotationDefinition
-                                    .builder()
-                                    .annotation(Controller.class.getSimpleName())
-                                    .build(),
-                            TcAnnotationDefinition
-                                    .builder()
-                                    .annotation(RequestMapping.class.getSimpleName())
-                                    .fields(Lists.newArrayList(
-                                            TcAnnotationDefinition.TcAnnotationFieldDefinition
-                                                    .builder()
-                                                    .name("value")
-                                                    .value("/123")
-                                                    .build()
-                                    )).build()
-                    ))
-                    .fields(Lists.newArrayList())
-                    .methods(Lists.newArrayList(
-                            TcMethodDefinition
-                                    .builder()
-                                    .returnValueType("String")
-                                    .name("find")
-                                    .annotations(Lists.newArrayList(
-                                            TcAnnotationDefinition
-                                                    .builder()
-                                                    .annotation(GetMapping.class.getSimpleName())
-                                                    .fields(Lists.newArrayList(
-                                                            TcAnnotationDefinition.TcAnnotationFieldDefinition
-                                                                    .builder()
-                                                                    .name("value")
-                                                                    .value("123")
-                                                                    .build()
-                                                    )).build())
-                                    )
-                                    .args(Lists.newArrayList(
-                                            TcArgDefinition
-                                                    .builder()
-                                                    .type("Hello")
-                                                    .name("helo")
-                                                    .annotations(Lists.newArrayList(
-                                                            TcAnnotationDefinition
-                                                                    .builder()
-                                                                    .annotation(RequestBody.class.getSimpleName())
-                                                                    .build()
-                                                    )).build()
-                                    )).build()
-                    )).build();
-
-            String classStr = TcClassBuilder.build(classDefinition);
-            System.out.println(classStr);
+        config.getTableDetails().forEach(tableDetail -> {
+            // gen terms
+            generateQueryTerms(config, tableDetail);
+            // gen web
+            TcWebgenControllerUtils.generateController(config, tableDetail);
+            // gen svc
+            // gen svcimpl
+            // gen dao
+            // gen daoimpl
         });
     }
 
-    // ---
+    // --- 层次生成组
+    private static void generateQueryTerms(TcWebgenConfig config, TcWebgenConfig.TcWebgenTableDetail tableDetail) {
+        Field[] fields = tableDetail.getTable().fields();
+        List<TcFieldDefinition> fieldDefinitions = Lists.newArrayList();
+        Arrays.stream(fields).forEach(field -> {
+            if (!typeHandlers.containsKey(field.getType())) {
+                throw new RuntimeException("no type handler found for [" + field.getType() + "]");
+            }
+            TcAbstractWebgenTypeHandler typeHandler = typeHandlers.get(field.getType());
+            fieldDefinitions.addAll(typeHandler.generate(field));
+        });
 
-    // ---
-    private static String findSourceRootPath(TcWebgenConfig config) {
-        return config.getProjectMavenBaseDir() + config.getProjectMavenSourceDir();
-    }
+        TcClassDefinition classDefinition = TcClassDefinition.builder()
+                .pkg(config.getProjectTermsLayerPackage())
+                .imports(TcWebgenImportUtils.findTermsFieldImports(fields))
+                .name(TcWebgenNamingUtils.findTermsName(config, tableDetail))
+                .annotations(Lists.newArrayList(
+                        TcAnnotationDefinition.builder()
+                                .annotation(Data.class.getSimpleName()).build()
+                ))
+                .fields(fieldDefinitions)
+                .build();
 
-    private String findWebLayerSourcePath(TcWebgenConfig config) {
-        return findSourceRootPath(config) + TcPathUtils.convertPackageToPath(config.getProjectWebLayerPackage());
-    }
+        String classStr = TcClassBuilder.build(classDefinition);
 
-    private String findSvcLayerSourcePath(TcWebgenConfig config) {
-        return findSourceRootPath(config) + TcPathUtils.convertPackageToPath(config.getProjectSvcLayerPackage());
-    }
-
-    private String findSvcImplLayerSourcePath(TcWebgenConfig config) {
-        return findSourceRootPath(config) + TcPathUtils.convertPackageToPath(config.getProjectSvcImplLayerPackage());
-    }
-
-    private String findDaoLayerSourcePath(TcWebgenConfig config) {
-        return findSourceRootPath(config) + TcPathUtils.convertPackageToPath(config.getProjectDaoLayerPackage());
-    }
-
-    private String findDaoImplLayerSourcePath(TcWebgenConfig config) {
-        return findSourceRootPath(config) + TcPathUtils.convertPackageToPath(config.getProjectDaoImplLayerPackage());
+        TcWebgenIOUtils.write(config, TcWebgenSourcePathUtils.findTermsLayerSourcePath(config), TcWebgenNamingUtils.findTermsName(config, tableDetail), classStr);
     }
 
 }
