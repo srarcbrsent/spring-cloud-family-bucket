@@ -14,6 +14,8 @@ import java.util.List;
 @Builder
 public class TcWebgenConfig {
 
+    private boolean override;
+
     private String projectMavenBaseDir;
 
     private String projectMavenSourceDir;

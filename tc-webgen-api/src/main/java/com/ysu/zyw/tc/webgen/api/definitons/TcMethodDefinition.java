@@ -12,18 +12,14 @@ import java.util.List;
 @AllArgsConstructor
 @Data
 @Builder
-public class TcClassDefinition {
+public class TcMethodDefinition {
 
-    private String pkg;
+    private String returnValueType;
 
     private String name;
 
-    private List<String> imports = Lists.newArrayList();
-
     private List<TcAnnotationDefinition> annotations = Lists.newArrayList();
 
-    private List<TcFieldDefinition> fields = Lists.newArrayList();
-
-    private List<TcMethodDefinition> methods = Lists.newArrayList();
+    private List<TcArgDefinition> args = Lists.newArrayList();
 
 }

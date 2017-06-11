@@ -9,4 +9,8 @@ public class TcPathUtils {
         return pkg.replace(".", "/");
     }
 
+    public static String convertPathToPackage(String path) {
+        return path.replace("/", ".");
+    }
+
 }
